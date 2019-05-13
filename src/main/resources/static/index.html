@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="ISO-8859-1">
+<title>Insert title here</title>
+<script
+	src="https://ajax.googleapis.com/ajax/libs/jquery/3.4.0/jquery.min.js"></script>
+
+</head>
+<body>
+	<h2>Login form</h2>
+	Username:
+	<input type="text" id="username">
+	<br> Password:
+	<input type="password" id="password">
+	<br>
+	<button id="login">Login</button>
+	<button id="logout">Logout</button>
+
+	<hr>
+	<button id="buttonCars">Show cars</button>
+	<div id="cars">
+		CARS HERE
+	</div>
+
+
+	<div>
+		<h2>Add car to server</h2>
+		Brand: <input id="in-brand"><br>
+		<button id="add-car">Add car</button>
+	</div>
+
+
+	<hr>
+	<div id="sales">
+		SALES HERE
+	</div>
+	
+	<button id="load-sales">Load sales</button>
+	<hr>
+	<h2>Add sale</h2>
+	
+	 
+	<div>
+		Title: <input id="in-sale-title"><br>
+		Car: <select id="in-sale-car">
+			
+		</select>
+		<button id="add-sale">Sell your car</button>
+	</div>
+
+	<script>
+	
+	var cars = [];
+	
+	$('#add-sale').click(function(){
+		if(!localStorage.getItem("SERVER_TOKEN")){
+			alert('you need to be logged in to perform this operations')
+			return;
+		}
+		
+		var title = $('#in-sale-title').val();
+		var carId = $('#in-sale-car').val();
+		var car = null;
+		for(var c of cars){
+			if(c.id == carId){
+				car = c;
+			}
+		}
+		var user = JSON.parse(localStorage.getItem("LOGGED_IN_USER"));
+		console.log('title of sale: ', title);
+		console.log('selling car: ', car);
+		console.log('user selling: ', user);
+		
+		var jsonSale = {
+				title : title,
+				user : user,
+				car : car
+		};
+		
+		$.ajax({
+		    contentType: 'application/json',
+		    data: JSON.stringify(jsonSale),
+		    dataType: 'json',
+		    success: function(sale){
+		        
+		        
+		        $('#sales-tbody-id').append(`
+		        		<tr><td>${sale.id}</td><td>${sale.title}</td><td>${sale.user.username}</td><td>${sale.car.brand}</td></tr>
+		        		`);
+		    },
+		    error: function(){
+		        alert("Failed save sale");
+		    },
+		    processData: false,
+		    type: 'POST',
+		    url: 'http://localhost:9000/v1/rest/sales/save/'+localStorage.getItem("SERVER_TOKEN"),
+		});
+		
+	});
+	
+	function createCarOptionsSelect(cars){
+		var options = "";
+		for(var car of cars){
+			options += `<option value="${car.id}">${car.brand}</option>`;
+			
+		}
+		$('#in-sale-car').html(options);
+	}
+	
+	$('#load-sales').click(function(){
+		if(!localStorage.getItem("SERVER_TOKEN")){
+			alert('you need to be logged in to perform this operations')
+			return;
+		}
+		$.ajax({
+			url : 'http://localhost:9000/v1/rest/sales/all/'+localStorage.getItem("SERVER_TOKEN"),
+			success : function(data){
+				console.log('data is: ', data);
+				
+			
+				
+				var html = "<table id='sales-table'>";
+				html += `<thead><tr><th>Sale id</th><th>Title</th><th>User</th><th>Car</th></tr></thead><tbody id="sales-tbody-id">`;
+				for(let sale of data){
+					html += `<tr><td>${sale.id}</td><td>${sale.title}</td><td>${sale.user.username}</td><td>${sale.car.brand}</td></tr>`;
+				}
+				
+				html += "</tbody></table>";
+				$('#sales').html(html);
+			}
+		});
+	});
+		
+	
+		$('#add-car').click(function(){
+			var brand = $('#in-brand').val();
+			var carJson = {
+					"brand" : brand
+			};
+			
+			$.ajax({
+			    contentType: 'application/json',
+			    data: JSON.stringify(carJson),
+			    dataType: 'json',
+			    success: function(data){
+			        $('#cars-list').append(`<li>${data.id} - ${data.brand}</li>`);
+			        cars.push(data);
+			        console.log('all cars: ', cars);
+			        createCarOptionsSelect(cars);
+			    },
+			    error: function(){
+			        alert("Failed save car");
+			    },
+			    processData: false,
+			    type: 'POST',
+			    url: 'http://localhost:9000/v1/rest/cars/save/'+localStorage.getItem("SERVER_TOKEN"),
+			});
+		});
+
+
+		
+		function refreshCars(){
+			$.ajax({
+				url : 'http://localhost:9000/v1/rest/cars/all/'+localStorage.getItem("SERVER_TOKEN"),
+				success : function(data){
+					console.log('data is: ', data);
+					var html = "<ul id='cars-list'>";
+					for(let car of data){
+						html += `<li>${car.id} - ${car.brand}</li>`;
+					}
+					html += "</ul>"; 
+					$('#cars').html(html);
+					cars = data;
+					createCarOptionsSelect(cars);
+				}
+			});
+		}
+		
+		// load the cars when the page loads, don't wait for the user to click 'Load Cars'
+		refreshCars();
+		
+		
+		$('#buttonCars').click(function(){
+			if(!localStorage.getItem("SERVER_TOKEN")){
+				alert('you need to be logged in to perform this operations')
+				return;
+			}
+			refreshCars();
+		});
+
+		$('#logout').click(function(){
+			localStorage.removeItem("SERVER_TOKEN");
+			localStorage.removeItem("LOGGED_IN_USER");
+		});
+
+		$('#login').click(function() {
+
+			var json = {
+					"username" : $('#username').val(),
+					"password" : $('#password').val()
+			};
+			
+			$.ajax({
+				url : '/v1/rest/security/auth',
+				type : 'post',
+				dataType : 'json',
+				contentType : 'application/json',
+				success : function(data) {
+					// $('#target').html(data.msg);
+					console.log('server said: ', data);
+					// data = JSON.parse(data);
+					console.log('token is: ', data.token);
+					// alert('logged in with token: ' + data.token);
+					localStorage.setItem("SERVER_TOKEN", data.token);
+					localStorage.setItem("LOGGED_IN_USER", JSON.stringify(data)); // save the user to 'session'
+				},
+				data : JSON.stringify(json)
+			});
+
+		});
+	</script>
+</body>
+</html>
